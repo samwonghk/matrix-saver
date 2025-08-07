@@ -32,6 +32,4 @@ jobs:
           npm run build --if-present
 
       # Deploy
-      - name: Deploy
-        run: |
-          github-pages -d dist
+      - uses: actions/deploy-pages@v4.0.5
