@@ -8,7 +8,8 @@
         data() {
             return {
                 textStrings: [],
-                noOfTextStrings: 300,
+                noOfTextStrings: 250,
+                noOfActiveTextStrings: 250,
                 fontSize: 12,
                 fontColor: '#3a3', // Green color for text
                 fontFamily: 'monospace',
@@ -31,11 +32,60 @@
                 this.addTextString(this.generateText(), Math.random() * window.innerWidth, Math.random() * window.innerHeight, 2 + Math.random() * 10, Math.random() < 0.5);
             }
             console.log(this.textStrings.map((textString) => textString.flipped).filter(flipped => flipped).length + ' flipped text strings');
-            var repeat = setInterval(() => {
-                // console.log('Drawing text...');
-                this.drawText();
-            }, 100);
-            console.log(repeat);
+            let self = this;
+
+            function FrameRate(samples = 20) {
+                const times = [];
+                var s = samples;
+                while(s--) { times.push(0) }
+                var head = 0, total = 0, frame = 0, previouseNow = 0, rate = 0, dropped = 0;
+                const rates = [0, 10, 12, 15, 20, 30, 60, 90, 120, 144, 240];
+                const rateSet = rates.length;
+                const API = {
+                    sampleCount: samples,
+                    reset() {
+                        frame = total = head = 0;
+                        previouseNow = performance.now();
+                        times.fill(0);
+                    },
+                    set tick(soak) {
+                        const now = performance.now()
+                        total -= times[head];
+                        total += (times[head++] = now - previouseNow);
+                        head %= samples;
+                        frame ++;
+                        previouseNow = now
+                    },
+                    get rate() { return frame > samples ? 1000 / (total / samples) : 1 },
+                    get FPS() {
+                        var r = API.rate, rr = r | 0, i = 0;
+                        while (i < rateSet && rr > rates[i]) { i++ }
+                        rate = rates[i];
+                        dropped = Math.round((total - samples * (1000 / rate)) / (1000 / rate));
+                        return rate;
+                    },
+                    get dropped() { return dropped },
+                };
+                return API;
+            }
+
+            const fRate = FrameRate();
+            // var frame = 0;
+
+            fRate.reset();
+            function draw () {
+                // frame++;
+                fRate.tick = 1;
+                self.drawText();
+                // console.log('FPS:', fRate.FPS, 'Dropped frames:', fRate.dropped, 'Active TextStrings', self.textStrings.length);
+                if (isNaN(fRate.dropped) || fRate.dropped > 10) self.textStrings = self.textStrings.filter((text, index) => index < (self.textStrings.length / 2)); // Reduce text strings if too many frames are dro
+                // window.requestAnimationFrame(draw);
+            }
+            setInterval(() => {
+                fRate.tick = 1;
+                draw();
+            }, 100); // 60 FPS
+            // window.requestAnimationFrame(draw);
         },
         methods: {
             initCanvas() {
@@ -61,11 +111,13 @@
                 const canvas = this.$refs.canvas;
                 if (canvas) {
                     const ctx = canvas.getContext('2d');
+                    ctx.beginPath();
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
                     ctx.fillStyle = '#000';
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
                     ctx.fillStyle = this.fontColor; // Green color for text
                     this.textStrings.forEach((textString) => {
+                        // if (index >= this.noOfActiveTextStrings) return; // Limit the number of active text strings
                         ctx.font = this.fontSize + 'px ' + this.fontFamily;
                         ctx.scale(-1, 1)
                         if (textString.flipped) {
@@ -109,11 +161,12 @@
                             textString.x = Math.random() * canvas.width; // Randomize x position
                         }
                     });
+                    ctx.closePath();
                 }
             },
             generateText() {
                 let text = '';
-                let length = Math.floor(Math.random() * 20) + 5; // Random length between 1 and 10
+                let length = Math.floor(Math.random() * 30) + 5; // Random length between 1 and 10
                 for (let i = 0; i < length; i++) {
                     text += this.letters.charAt(Math.floor(Math.random() * this.letters.length));
                 }
